@@ -1,0 +1,65 @@
+---
+- name: Install mariadb packages
+  yum: name={{ item }} state=installed
+  with_items:
+    - mariadb-server
+    - MySQL-python
+
+- name: Install mariadb Connector packages
+  yum: name=mysql-connector-java state=present
+  delegate_to: "{{ item }}"
+  with_items: "{{ groups['all_hadoop_nodes'] }}"
+
+- name: Create Mysql configuration file
+  template: src=my.cnf.j2 dest=/etc/my.cnf
+  notify:
+    - restart mariadb
+
+- name: Create mariadb log file
+  file: path={{ mariadb_log }} state=touch owner=mysql group=mysql mode=0775
+
+- name: Create mariadb PID directory
+  file: path={{ mariadb_pid_dir }} state=directory owner=mysql group=mysql mode=0775
+
+
+- name: Start mariadb Service
+  service: name=mariadb state=started enabled=yes
+
+
+- name: Set root password
+  mysql_user: name=root password={{ mysql_root_password }} state=present
+  ignore_errors: True
+  tags:
+    - mysql
+
+- name: Remove anonymous users
+  command: 'mysql -uroot -p{{ mysql_root_password }} -ne "{{ item }}"'
+  with_items:
+    - DELETE FROM mysql.user WHERE User=''
+  changed_when: False
+
+- name: Disable remote login for root
+  command: 'mysql -uroot -p{{ mysql_root_password }} -ne "{{ item }}"'
+  with_items:
+    - DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('127.0.0.1', '::1', 'localhost')
+  changed_when: False
+
+- name: Remove the test database
+  mysql_db: login_user=root login_password={{ mysql_root_password }} db=test state=absent
+
+- name: Reload privilege tables
+  command: 'mysql -uroot -p{{ mysql_root_password }} -ne "{{ item }}"'
+  with_items:
+    - FLUSH PRIVILEGES
+
+- name: Create databases
+  mysql_db: login_user=root login_password={{ mysql_root_password }}
+              name={{ item.value.name }} state=present
+  with_dict: "{{ databases }}"
+
+- name: Create database users
+  mysql_user: login_user=root login_password={{ mysql_root_password }}
+                name={{ item.value.user }} password={{ item.value.pass }} update_password=always
+                priv={{ item.value.name }}.*:ALL host='%' state=present
+  with_dict: "{{ databases }}"
+  

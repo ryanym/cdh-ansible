@@ -1,0 +1,7 @@
+---
+mariadb_datadir: /var/lib/mariadb/data
+mariadb_socket: /var/lib/mariadb/mariadb.sock
+mariadb_log_bin: /var/lib/mariadb/mariadb_binary_log
+mariadb_log: /var/log/mariadbd.log
+mariadb_pid_dir: /var/run/mariadbd
+mariadb_pid_file: "{{ mariadb_pid_dir }}/mariadbd.pid"
